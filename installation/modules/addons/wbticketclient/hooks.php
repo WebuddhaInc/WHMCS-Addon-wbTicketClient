@@ -206,27 +206,23 @@ defined("WHMCS") or die("wbTicketClient Error: Invalid File Access");
            * Request to unlink client from ticket
            */
           if (@$_REQUEST['unlink_client']) {
-            $ticket_ids = $dbh->runQuery("
-              SELECT id
-              FROM tbltickets
-              WHERE userid = ". $user->id ."
-              ")->getObjects();
-            if ($ticket_ids) {
-              foreach ($ticket_ids AS $ticket_ids_row){
-                $dbh->runUpdate('tbltickets', array(
-                  'userid' => 0
-                  ), array(
-                  "id = " . $ticket_ids_row->id
-                  ));
-                $dbh->runUpdate('tblticketreplies', array(
-                  'userid' => 0,
-                  'name' => trim($user->firstname.' '.$user->lastname),
-                  ), array(
-                  "tid = " . $ticket_ids_row->id,
-                  "userid = " . $user->id
-                  ));
-              }
-            }
+            // Unlink Ticket, assign name and email if empty
+            $dbh->runQuery("
+              UPDATE tbltickets
+              SET userid = 0
+                , name = IF(length(name) > 0, name, '". $dbh->getEscaped(trim($user->firstname.' '.$user->lastname)) ."')
+                , email = IF(length(email) > 0, email, '". $dbh->getEscaped($user->email) ."')
+              WHERE id = ". (int)$ticket_id ."
+              ");
+            // Unlink Ticket Replies, assign name and email if empty
+            $dbh->runQuery("
+              UPDATE tblticketreplies
+              SET userid = 0
+                , name = IF(length(name) > 0, name, '". $dbh->getEscaped(trim($user->firstname.' '.$user->lastname)) ."')
+                , email = IF(length(email) > 0, email, '". $dbh->getEscaped($user->email) ."')
+              WHERE tid = ". (int)$ticket_id ."
+                AND userid = ". (int)$user->id ."
+              ");
             header('Location: supporttickets.php?action=view&id='. $ticket_id);
           }
 

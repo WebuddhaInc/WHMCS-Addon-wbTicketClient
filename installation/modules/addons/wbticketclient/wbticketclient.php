@@ -17,7 +17,7 @@ defined("WHMCS") or die("wbTicketClient Error: Invalid File Access");
     $configarray = array(
       "name"        => "wbTicketClient",
       "description" => "",
-      "version"     => "0.0.0",
+      "version"     => "0.1.0",
       "author"      => "Holodyn, Inc.",
       "language"    => "english",
       "fields"      => array()
