@@ -112,19 +112,45 @@ class wbTicketClient_Helper {
               $client_id &&
               ($client = Capsule::table('tblclients')->where('id', (int)$client_id)->first())
               ) {
-              $tblTicketUpdates = array('userid' => (int)$client_id);
+              $tblTicketUpdates = array(
+                'userid' => (int)$client_id
+                );
+              $tblTicketReplyUpdates = array(
+                'userid' => (int)$client_id
+                );
+              // Create Contact
+              if (empty($contact_id)) {
+                $name = array_filter(explode(' ', $ticket->name, 2), 'strlen');
+                $name_first = reset($name) ?: 'n/a';
+                $name_last  = count($name) > 1 ? end($name) : 'n/a';
+                $adminUsername = Capsule::table('tbladmins')->where('id', $adminId)->pluck('username')->first();
+                $createContactResults = localAPI('AddContact', array(
+                  'clientid'  => $client_id,
+                  'firstname' => $name_first,
+                  'lastname'  => $name_last,
+                  'email'     => $ticket->email
+                  ), $adminUsername);
+                $contact_id = $createContactResults['contactid'];
+                $cc_email = $ticket->email;
+              }
               if ($cc_email) {
                 $cc_email_quoted = Capsule::getInstance()->getConnection()->getPdo()->quote($cc_email);
                 $tblTicketUpdates['cc'] = Capsule::raw("IF(length(cc) > 0, IF(find_in_set({$cc_email_quoted}, cast(cc as char)) > 0,cc,CONCAT(cc,',',{$cc_email_quoted})), {$cc_email_quoted})");
               }
-              Capsule::table('tbltickets')->where('id', (int)$ticket_id)->update($tblTicketUpdates);
-              Capsule::table('tblticketreplies')->where(array(
-                'tid' => (int)$ticket_id,
-                'userid' => 0,
-                'email' => $ticket->email
-                ))->update(array(
-                'userid' => (int)$client_id
-                ));
+              if ($contact_id) {
+                $tblTicketUpdates['contactid'] = $contact_id;
+                $tblTicketReplyUpdates['contactid'] = $contact_id;
+              }
+              Capsule::table('tbltickets')
+                ->where('id', (int)$ticket_id)
+                ->update($tblTicketUpdates);
+              Capsule::table('tblticketreplies')
+                ->where(array(
+                  'tid' => (int)$ticket_id,
+                  'userid' => 0,
+                  'email' => $ticket->email
+                  ))
+                ->update($tblTicketReplyUpdates);
             }
             header('Location: supporttickets.php?action=view&id='. $ticket_id);
           }
