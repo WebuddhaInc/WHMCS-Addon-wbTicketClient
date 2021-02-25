@@ -224,7 +224,8 @@ class wbTicketClient_Helper {
           else if($ticketEmail = strtolower($ticket->email)) {
 
             $clientsFound = array();
-            $htmlMatches = array();
+            $htmlMatches  = array();
+            $emailDomain  = preg_replace('/^.*\@(.*)$/', '$1', $ticketEmail);
 
             /**
              * We found a contact with the same email
@@ -258,27 +259,76 @@ class wbTicketClient_Helper {
             }
 
             /**
+             * If no direct matches
+             */
+            if (empty($htmlMatches)) {
+
+              /**
+               * Lookup contact on contact account email domains
+               */
+              if ($emailDomain && $contact = Capsule::table('tblcontacts')->where('email', 'LIKE', '%@'.$emailDomain)->first()) {
+                if (!in_array($contact->userid, $clientsFound) && $client = Capsule::table('tblclients')->where('id', $contact->userid)->first()) {
+                  $clientsFound[] = $client->id;
+                  $clientName = strlen($client->firstname) || strlen($client->lastname) ? trim($client->firstname.' '.$client->lastname) : 'N/A';
+                  $htmlMatches[] = '<a href="supporttickets.php?action=view&id='. $ticket_id .'&assign_to_client='. $client->id .'" class="btn btn-sm btn-primary">'. sprintf($_ADMINLANG['wbticketclient']['assign_to_client'], $client->id, $clientName) .'</a>';
+                }
+              }
+
+              /**
+               * Lookup contact on client account email domains
+               */
+              if ($emailDomain && $client = Capsule::table('tblclients')->where('email', 'LIKE', '%@'.$emailDomain)->first()) {
+                if (!in_array($client->id, $clientsFound)) {
+                  $clientsFound[] = $client->id;
+                  $clientName = strlen($client->firstname) || strlen($client->lastname) ? trim($client->firstname.' '.$client->lastname) : 'N/A';
+                  $htmlMatches[] = '<a href="supporttickets.php?action=view&id='. $ticket_id .'&assign_to_client='. $client->id .'" class="btn btn-sm btn-primary">'. sprintf($_ADMINLANG['wbticketclient']['assign_to_client'], $client->id, $clientName) .'</a>';
+                }
+              }
+
+            }
+
+            /**
+             * Lookup based on client products
+             */
+            if ($emailDomain && $hosting = Capsule::table('tblhosting')->where('domain', 'LIKE', $emailDomain)->first()) {
+              if (!in_array($hosting->userid, $clientsFound) && $client = Capsule::table('tblclients')->where('id', $hosting->userid)->first()) {
+                $clientsFound[] = $client->id;
+                $clientName = strlen($client->firstname) || strlen($client->lastname) ? trim($client->firstname.' '.$client->lastname) : 'N/A';
+                $htmlMatches[] = '<a href="supporttickets.php?action=view&id='. $ticket_id .'&assign_to_client='. $client->id .'" class="btn btn-sm btn-primary">'. sprintf($_ADMINLANG['wbticketclient']['assign_to_client'], $client->id, $clientName) .'</a>';
+              }
+            }
+
+            /**
+             * Lookup based on client domains
+             */
+            if ($emailDomain && $domain = Capsule::table('tbldomains')->where('domain', 'LIKE', $emailDomain)->first()) {
+              if (!in_array($domain->userid, $clientsFound) && $client = Capsule::table('tblclients')->where('id', $domain->userid)->first()) {
+                $clientsFound[] = $client->id;
+                $clientName = strlen($client->firstname) || strlen($client->lastname) ? trim($client->firstname.' '.$client->lastname) : 'N/A';
+                $htmlMatches[] = '<a href="supporttickets.php?action=view&id='. $ticket_id .'&assign_to_client='. $client->id .'" class="btn btn-sm btn-primary">'. sprintf($_ADMINLANG['wbticketclient']['assign_to_client'], $client->id, $clientName) .'</a>';
+              }
+            }
+
+            /**
              * Lookup Custom Field Domains
              * or Offer to create a new client
              */
-            if ($emailDomain = preg_replace('/^.*\@(.*)$/', '$1', $ticketEmail)) {
-              if ($customFieldKey = Capsule::table('tbladdonmodules')->where(array(
-                'module' => 'wbticketclient',
-                'setting' => 'clientField'
-                ))->pluck('value')->first()) {
-                $clientDomainValues = Capsule::table('tblcustomfieldsvalues')->where('fieldid', $customFieldKey)->get()->all();
-                foreach ($clientDomainValues AS $clientDomainValuesOption) {
-                  $domainValues = array_filter(explode("\n", $clientDomainValuesOption->value), 'strlen');
-                  array_walk($domainValues, function(&$val){$val = preg_replace('/[^A-Za-z0-9\.\-]/', '', strtolower($val));});
-                  if (
-                    in_array($emailDomain, $domainValues)
-                    && ($client = Capsule::table('tblclients')->where('id', $clientDomainValuesOption->relid)->first())
-                    && !in_array($client->id, $clientsFound)
-                    ) {
-                    $clientsFound[] = $client->id;
-                    $clientName = strlen($client->firstname) || strlen($client->lastname) ? trim($client->firstname.' '.$client->lastname) : 'N/A';
-                    $htmlMatches[] = '<a href="supporttickets.php?action=view&id='. $ticket_id .'&assign_to_client='. $client->id .'" class="btn btn-sm btn-primary">'. sprintf($_ADMINLANG['wbticketclient']['assign_to_client_domain'], $client->id, $clientName) .'</a>';
-                  }
+            if ($emailDomain && $customFieldKey = Capsule::table('tbladdonmodules')->where(array(
+              'module' => 'wbticketclient',
+              'setting' => 'clientField'
+              ))->pluck('value')->first()) {
+              $clientDomainValues = Capsule::table('tblcustomfieldsvalues')->where('fieldid', $customFieldKey)->get()->all();
+              foreach ($clientDomainValues AS $clientDomainValuesOption) {
+                $domainValues = array_filter(explode("\n", $clientDomainValuesOption->value), 'strlen');
+                array_walk($domainValues, function(&$val){$val = preg_replace('/[^A-Za-z0-9\.\-]/', '', strtolower($val));});
+                if (
+                  in_array($emailDomain, $domainValues)
+                  && ($client = Capsule::table('tblclients')->where('id', $clientDomainValuesOption->relid)->first())
+                  && !in_array($client->id, $clientsFound)
+                  ) {
+                  $clientsFound[] = $client->id;
+                  $clientName = strlen($client->firstname) || strlen($client->lastname) ? trim($client->firstname.' '.$client->lastname) : 'N/A';
+                  $htmlMatches[] = '<a href="supporttickets.php?action=view&id='. $ticket_id .'&assign_to_client='. $client->id .'" class="btn btn-sm btn-primary">'. sprintf($_ADMINLANG['wbticketclient']['assign_to_client_domain'], $client->id, $clientName) .'</a>';
                 }
               }
             }
